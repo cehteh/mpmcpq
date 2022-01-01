@@ -30,7 +30,7 @@ where
 
     /// Takes the 'Message' entry out of a ReceiveGuard, drop the guard (and by that, may send
     /// the 'Drained' message).
-    pub fn into_entry(mut self) -> Message<K, P> {
+    pub fn into_message(mut self) -> Message<K, P> {
         std::mem::take(&mut self.msg)
     }
 }
