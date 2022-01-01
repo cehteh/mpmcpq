@@ -8,7 +8,7 @@ use crate::*;
 pub struct ReceiveGuard<'a, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     msg: Message<K, P>,
     pq:  &'a PriorityQueue<K, P>,
@@ -17,7 +17,7 @@ where
 impl<'a, K, P> ReceiveGuard<'a, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     pub(crate) fn new(msg: Message<K, P>, pq: &'a PriorityQueue<K, P>) -> Self {
         ReceiveGuard { msg, pq }
@@ -38,7 +38,7 @@ where
 impl<K, P> Drop for ReceiveGuard<'_, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     fn drop(&mut self) {
         if self.pq.in_progress.fetch_sub(1, atomic::Ordering::SeqCst) == 1 {

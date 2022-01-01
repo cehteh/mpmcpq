@@ -7,7 +7,7 @@ use crate::*;
 pub struct Stash<'a, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     pub(crate) msgs: Vec<Message<K, P>>,
     pq:              &'a PriorityQueue<K, P>,
@@ -16,7 +16,7 @@ where
 impl<'a, K, P> Stash<'a, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     /// Creates a new stash. A stash is tied to a priority queue, when the stash becomes
     /// dropped all its remaining temporary messages will be send to the queue.
@@ -31,7 +31,7 @@ where
 impl<K, P> Drop for Stash<'_, K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     fn drop(&mut self) {
         self.pq.sync(self);

@@ -10,7 +10,7 @@ use crate::*;
 pub struct PriorityQueue<K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     heap:                   Mutex<BinaryHeap<Message<K, P>>>,
     pub(crate) in_progress: AtomicUsize,
@@ -21,7 +21,7 @@ where
 impl<K, P> Default for PriorityQueue<K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     fn default() -> Self {
         Self::new()
@@ -37,7 +37,7 @@ enum Notify {
 impl<K, P> PriorityQueue<K, P>
 where
     K: Send,
-    P: PartialOrd + Default + Ord,
+    P: PartialOrd + Ord,
 {
     /// Create a new PriorityQueue
     pub fn new() -> PriorityQueue<K, P> {
