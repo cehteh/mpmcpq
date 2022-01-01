@@ -1,0 +1,22 @@
+[package]
+name = "mpmcpq"
+description = "Multi-producer multi-consumer Priority Queue"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+authors = ["Christian Thäter <ct@pipapo.org>"]
+repository = "https://github.com/cehteh/mpmcpq.git"
+version = "0.1.0"
+documentation = "http://docs.rs/mpmcpq"
+keywords = ["channel", "priority-queue", "synchronization", "messaging"]
+categories = ["multithreading"]
+edition = "2021"
+
+[dependencies]
+parking_lot = "0.11"
+
+[dev-dependencies]
+log = "0.4"
+env_logger = "0.9"
+
+[badges]
+maintenance = { status = "actively-developed" }
