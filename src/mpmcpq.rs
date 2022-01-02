@@ -49,6 +49,18 @@ where
         }
     }
 
+    fn notify(&self, notify: Notify) {
+        match notify {
+            Notify::None => {}
+            Notify::One => {
+                self.notify.notify_one();
+            }
+            Notify::All => {
+                self.notify.notify_all();
+            }
+        }
+    }
+
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
     pub fn sync(&self, stash: &Stash<K, P>) {
         let mut notify = Notify::None;
@@ -68,20 +80,17 @@ where
             });
         }
 
-        match notify {
-            Notify::None => {}
-            Notify::One => {
-                self.notify.notify_one();
-            }
-            Notify::All => {
-                self.notify.notify_all();
-            }
-        }
+        self.notify(notify);
     }
 
-    fn send_with_stash(&self, entry: Message<K, P>, stash: &Stash<K, P>) {
-        let mut notify = Notify::None;
+    /// Pushes an message with prio onto the queue, uses a Stash as temporary storage when the
+    /// queue is contended. Drains the stash in the uncontended case.
+    /// This function does not wait for the lock on the queue.
+    pub fn send(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+        self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
+        self.is_drained.store(false, atomic::Ordering::SeqCst);
 
+        let mut notify = Notify::None;
         let mut msgs = stash.msgs.borrow_mut();
 
         if let Some(mut lock) = self.heap.try_lock() {
@@ -93,28 +102,45 @@ where
                     lock.push(e);
                 });
             }
-            lock.push(entry);
+            lock.push(Message::Msg(entry, prio));
         } else {
-            msgs.push(entry);
+            msgs.push(Message::Msg(entry, prio));
         }
 
-        match notify {
-            Notify::None => {}
-            Notify::One => {
-                self.notify.notify_one();
-            }
-            Notify::All => {
-                self.notify.notify_all();
-            }
-        }
+        self.notify(notify);
     }
 
-    /// Pushes an message with prio onto the queue, uses a Stash as temporary storage when the
-    /// queue is contended. Drains the stash in the uncontended case.
-    pub fn send(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+    /// Pushes an message with prio onto the queue, drains the Stash first.
+    /// This function waits until the on the queue is locked.
+    pub fn send_sync(&self, entry: K, prio: P, stash: &Stash<K, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
-        self.send_with_stash(Message::Msg(entry, prio), stash);
+
+        let notify;
+        let mut msgs = stash.msgs.borrow_mut();
+
+        let mut lock = self.heap.lock();
+        if msgs.is_empty() {
+            notify = Notify::One;
+        } else {
+            notify = Notify::All;
+            msgs.drain(..).for_each(|e| {
+                lock.push(e);
+            });
+        }
+        lock.push(Message::Msg(entry, prio));
+
+        self.notify(notify);
+    }
+
+    /// Pushes an message to the Stash. will not try to send data to the queue.
+    /// Use this to batch some messages together before calling sync() to send them.
+    /// This function does not wait for the lock on the queue.
+    pub fn send_stash(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+        self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
+        self.is_drained.store(false, atomic::Ordering::SeqCst);
+
+        stash.msgs.borrow_mut().push(Message::Msg(entry, prio));
     }
 
     /// Send the 'Drained' message
@@ -131,7 +157,7 @@ where
         {
             self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
             self.heap.lock().push(Message::Drained);
-            self.notify.notify_one();
+            self.notify(Notify::One);
         }
     }
 
@@ -149,7 +175,7 @@ where
         {
             self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
             lock.push(Message::Drained);
-            self.notify.notify_one();
+            self.notify(Notify::One);
         }
     }
 
