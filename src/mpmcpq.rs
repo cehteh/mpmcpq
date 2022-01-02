@@ -50,18 +50,20 @@ where
     }
 
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
-    pub fn sync(&self, stash: &mut Stash<K, P>) {
+    pub fn sync(&self, stash: &Stash<K, P>) {
         let mut notify = Notify::None;
 
-        if !stash.msgs.is_empty() {
-            if stash.msgs.len() == 1 {
+        let mut msgs = stash.msgs.borrow_mut();
+
+        if !msgs.is_empty() {
+            if msgs.len() == 1 {
                 notify = Notify::One;
             } else {
                 notify = Notify::All;
             }
 
             let mut lock = self.heap.lock();
-            stash.msgs.drain(..).for_each(|e| {
+            msgs.drain(..).for_each(|e| {
                 lock.push(e);
             });
         }
@@ -77,21 +79,23 @@ where
         }
     }
 
-    fn send_with_stash(&self, entry: Message<K, P>, stash: &mut Stash<K, P>) {
+    fn send_with_stash(&self, entry: Message<K, P>, stash: &Stash<K, P>) {
         let mut notify = Notify::None;
 
+        let mut msgs = stash.msgs.borrow_mut();
+
         if let Some(mut lock) = self.heap.try_lock() {
-            if stash.msgs.is_empty() {
+            if msgs.is_empty() {
                 notify = Notify::One;
             } else {
                 notify = Notify::All;
-                stash.msgs.drain(..).for_each(|e| {
+                msgs.drain(..).for_each(|e| {
                     lock.push(e);
                 });
             }
             lock.push(entry);
         } else {
-            stash.msgs.push(entry);
+            msgs.push(entry);
         }
 
         match notify {
@@ -107,7 +111,7 @@ where
 
     /// Pushes an message with prio onto the queue, uses a Stash as temporary storage when the
     /// queue is contended. Drains the stash in the uncontended case.
-    pub fn send(&self, entry: K, prio: P, stash: &mut Stash<K, P>) {
+    pub fn send(&self, entry: K, prio: P, stash: &Stash<K, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
         self.send_with_stash(Message::Msg(entry, prio), stash);
