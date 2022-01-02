@@ -37,6 +37,21 @@ where
             pq:   None,
         }
     }
+
+    /// Returns true when the Stash contains no messages.
+    pub fn is_empty(&self) -> bool {
+        self.msgs.borrow().is_empty()
+    }
+
+    /// Returns the number of messages in the stash.
+    pub fn len(&self) -> usize {
+        self.msgs.borrow().len()
+    }
+
+    /// Returns the number of messages the stash can hold without reallocating.
+    pub fn capacity(&self) -> usize {
+        self.msgs.borrow().capacity()
+    }
 }
 
 impl<K, P> Drop for Stash<'_, K, P>
