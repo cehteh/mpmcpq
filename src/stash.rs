@@ -21,7 +21,7 @@ where
     P: PartialOrd + Ord,
 {
     /// Creates a new stash. A stash is tied to a priority queue, when the stash becomes
-    /// dropped all its remaining temporary messages will be send to the queue.
+    /// dropped all its remaining temporary messages will be sent to the queue.
     pub fn new(pq: &'a PriorityQueue<K, P>) -> Self {
         Stash {
             msgs: RefCell::new(Vec::new()),

@@ -5,7 +5,7 @@ use parking_lot::{Condvar, Mutex};
 
 use crate::*;
 
-/// A queue which orders entrys by priority
+/// A queue which orders messages by priority
 #[derive(Debug)]
 pub struct PriorityQueue<K, P>
 where
@@ -110,7 +110,7 @@ where
         self.notify(notify);
     }
 
-    /// Pushes an message with prio onto the queue, drains the Stash first.
+    /// Pushes a message with prio onto the queue, drains the Stash first.
     /// This function waits until the on the queue is locked.
     pub fn send_sync(&self, entry: K, prio: P, stash: &Stash<K, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
