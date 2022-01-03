@@ -7,20 +7,20 @@ use crate::*;
 
 /// A queue which orders messages by priority
 #[derive(Debug)]
-pub struct PriorityQueue<K, P>
+pub struct PriorityQueue<M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
-    heap:                   Mutex<BinaryHeap<Message<K, P>>>,
+    heap:                   Mutex<BinaryHeap<Message<M, P>>>,
     pub(crate) in_progress: AtomicUsize,
     is_drained:             AtomicBool,
     notify:                 Condvar,
 }
 
-impl<K, P> Default for PriorityQueue<K, P>
+impl<M, P> Default for PriorityQueue<M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
     fn default() -> Self {
@@ -34,13 +34,13 @@ enum Notify {
     All,
 }
 
-impl<K, P> PriorityQueue<K, P>
+impl<M, P> PriorityQueue<M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
     /// Create a new PriorityQueue
-    pub fn new() -> PriorityQueue<K, P> {
+    pub fn new() -> PriorityQueue<M, P> {
         PriorityQueue {
             heap:        Mutex::new(BinaryHeap::new()),
             in_progress: AtomicUsize::new(0),
@@ -51,7 +51,7 @@ where
 
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
     /// This function waits until the on the queue is locked.
-    pub fn sync(&self, stash: &Stash<K, P>) {
+    pub fn sync(&self, stash: &Stash<M, P>) {
         let mut notify = Notify::None;
 
         let mut msgs = stash.msgs.borrow_mut();
@@ -75,7 +75,7 @@ where
     /// Pushes an message with prio onto the queue, uses a Stash as temporary storage when the
     /// queue is contended. Drains the stash in the uncontended case.
     /// This function does not wait for the lock on the queue.
-    pub fn send(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+    pub fn send(&self, message: M, prio: P, stash: &Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
@@ -91,9 +91,9 @@ where
                     lock.push(e);
                 });
             }
-            lock.push(Message::Msg(entry, prio));
+            lock.push(Message::Msg(message, prio));
         } else {
-            msgs.push(Message::Msg(entry, prio));
+            msgs.push(Message::Msg(message, prio));
         }
 
         self.notify(notify);
@@ -101,7 +101,7 @@ where
 
     /// Pushes a message with prio onto the queue, drains the Stash first.
     /// This function waits until the on the queue is locked.
-    pub fn send_sync(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+    pub fn send_sync(&self, message: M, prio: P, stash: &Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
@@ -117,7 +117,7 @@ where
                 lock.push(e);
             });
         }
-        lock.push(Message::Msg(entry, prio));
+        lock.push(Message::Msg(message, prio));
 
         self.notify(notify);
     }
@@ -125,23 +125,23 @@ where
     /// Pushes an message to the Stash. will not try to send data to the queue.
     /// Use this to combine some messages together before calling sync() to send them.
     /// This function does not wait for the lock on the queue.
-    pub fn send_stash(&self, entry: K, prio: P, stash: &Stash<K, P>) {
+    pub fn send_stash(&self, message: M, prio: P, stash: &Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
-        stash.msgs.borrow_mut().push(Message::Msg(entry, prio));
+        stash.msgs.borrow_mut().push(Message::Msg(message, prio));
     }
 
     /// Combines the above to collect at least 'batch_size' messages in the stash before
     /// trying to send them out.  Use this to batch some messages together before calling
     /// sync() to send them.  This function does not wait for the lock on the queue.
-    pub fn send_batched(&self, entry: K, prio: P, batch_size: usize, stash: &Stash<K, P>) {
+    pub fn send_batched(&self, message: M, prio: P, batch_size: usize, stash: &Stash<M, P>) {
         if stash.len() <= batch_size {
             // append to the stash
-            self.send_stash(entry, prio, stash);
+            self.send_stash(message, prio, stash);
         } else {
             // try to send
-            self.send(entry, prio, stash);
+            self.send(message, prio, stash);
         }
     }
 
@@ -164,7 +164,7 @@ where
     }
 
     /// With lock already hold.
-    pub(crate) fn send_drained_with_lock(&self, lock: &mut BinaryHeap<Message<K, P>>) {
+    pub(crate) fn send_drained_with_lock(&self, lock: &mut BinaryHeap<Message<M, P>>) {
         if self
             .is_drained
             .compare_exchange(
@@ -181,29 +181,29 @@ where
         }
     }
 
-    /// Returns the smallest entry from a queue. This entry is wraped in a ReceiveGuard/Message
-    pub fn recv_guard(&self) -> ReceiveGuard<K, P> {
+    /// Returns the smallest message from a queue. This message is wraped in a ReceiveGuard/Message
+    pub fn recv_guard(&self) -> ReceiveGuard<M, P> {
         let mut lock = self.heap.lock();
         while lock.is_empty() {
             self.notify.wait(&mut lock);
         }
 
-        let entry = lock.pop().unwrap();
+        let message = lock.pop().unwrap();
 
-        ReceiveGuard::new(entry, self)
+        ReceiveGuard::new(message, self)
     }
 
-    /// Try to get the smallest entry from a queue. Will return Some<ReceiveGuard> when a
+    /// Try to get the smallest message from a queue. Will return Some<ReceiveGuard> when a
     /// message is available.
-    pub fn try_recv_guard(&self) -> Option<ReceiveGuard<K, P>> {
+    pub fn try_recv_guard(&self) -> Option<ReceiveGuard<M, P>> {
         match self.heap.try_lock() {
-            Some(mut queue) => queue.pop().map(|entry| ReceiveGuard::new(entry, self)),
+            Some(mut queue) => queue.pop().map(|message| ReceiveGuard::new(message, self)),
             None => None,
         }
     }
 
-    /// Returns the smallest entry from a queue.
-    pub fn recv(&self) -> Message<K, P> {
+    /// Returns the smallest message from a queue.
+    pub fn recv(&self) -> Message<M, P> {
         let mut lock = self.heap.lock();
         while lock.is_empty() {
             self.notify.wait(&mut lock);
@@ -217,9 +217,9 @@ where
         msg
     }
 
-    /// Try to get the smallest entry from a queue. Will return Some<Message> when a message
+    /// Try to get the smallest message from a queue. Will return Some<Message> when a message
     /// is available.
-    pub fn try_recv(&self) -> Option<Message<K, P>> {
+    pub fn try_recv(&self) -> Option<Message<M, P>> {
         match self.heap.try_lock() {
             Some(mut lock) => {
                 let msg = lock.pop().unwrap();

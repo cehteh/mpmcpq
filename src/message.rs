@@ -1,24 +1,24 @@
 /// Type for the received message
 #[derive(Debug, Clone, Copy)]
-pub enum Message<K: Send, P: Ord> {
-    /// Message with data K and priority P
-    Msg(K, P),
+pub enum Message<M: Send, P: Ord> {
+    /// Message with data M and priority P
+    Msg(M, P),
     /// Queue got empty and no other workers processing a ReceiveGuard
     Drained,
     /// Value when taken from a ReceiveGuard, won't be visible to a user.
     Taken,
 }
 
-impl<K: Send, P: Ord> Message<K, P> {
-    /// Returns a reference to the value of the entry.
-    pub fn entry(&self) -> Option<&K> {
+impl<M: Send, P: Ord> Message<M, P> {
+    /// Returns a reference to the value of the message.
+    pub fn message(&self) -> Option<&M> {
         match &self {
-            Message::Msg(k, _) => Some(k),
+            Message::Msg(msg, _) => Some(msg),
             _ => None,
         }
     }
 
-    /// Returns a reference to the priority of the entry.
+    /// Returns a reference to the priority of the message.
     pub fn priority(&self) -> Option<&P> {
         match &self {
             Message::Msg(_, prio) => Some(prio),
@@ -32,7 +32,7 @@ impl<K: Send, P: Ord> Message<K, P> {
     }
 }
 
-impl<K: Send, P: Ord> Ord for Message<K, P> {
+impl<M: Send, P: Ord> Ord for Message<M, P> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         match (self, other) {
@@ -45,13 +45,13 @@ impl<K: Send, P: Ord> Ord for Message<K, P> {
     }
 }
 
-impl<K: Send, P: Ord> PartialOrd for Message<K, P> {
+impl<M: Send, P: Ord> PartialOrd for Message<M, P> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<K: Send, P: Ord> PartialEq for Message<K, P> {
+impl<M: Send, P: Ord> PartialEq for Message<M, P> {
     fn eq(&self, other: &Self) -> bool {
         use Message::*;
         match (self, other) {
@@ -62,9 +62,9 @@ impl<K: Send, P: Ord> PartialEq for Message<K, P> {
     }
 }
 
-impl<K: Send, P: Ord> Eq for Message<K, P> {}
+impl<M: Send, P: Ord> Eq for Message<M, P> {}
 
-impl<K: Send, P: Ord> Default for Message<K, P> {
+impl<M: Send, P: Ord> Default for Message<M, P> {
     fn default() -> Self {
         Message::Taken
     }

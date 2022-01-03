@@ -6,23 +6,23 @@ use crate::*;
 /// 'stash'. When messages are send to the PriorityQueue while it is locked they are stored in
 /// this stash. Once the lock is obtained the stashed messages will be moved to the
 /// PriorityQueue. This can also be enforced with the 'PriorityQueue::sync()' function.
-pub struct Stash<'a, K, P>
+pub struct Stash<'a, M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
-    pub(crate) msgs: RefCell<Vec<Message<K, P>>>,
-    pq:              Option<&'a PriorityQueue<K, P>>,
+    pub(crate) msgs: RefCell<Vec<Message<M, P>>>,
+    pq:              Option<&'a PriorityQueue<M, P>>,
 }
 
-impl<'a, K, P> Stash<'a, K, P>
+impl<'a, M, P> Stash<'a, M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
     /// Creates a new stash. A stash is tied to a priority queue, when the stash becomes
     /// dropped all its remaining temporary messages will be sent to the queue.
-    pub fn new(pq: &'a PriorityQueue<K, P>) -> Self {
+    pub fn new(pq: &'a PriorityQueue<M, P>) -> Self {
         Stash {
             msgs: RefCell::new(Vec::new()),
             pq:   Some(pq),
@@ -54,9 +54,9 @@ where
     }
 }
 
-impl<K, P> Drop for Stash<'_, K, P>
+impl<M, P> Drop for Stash<'_, M, P>
 where
-    K: Send,
+    M: Send,
     P: PartialOrd + Ord,
 {
     fn drop(&mut self) {
