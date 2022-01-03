@@ -50,6 +50,7 @@ where
     }
 
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
+    /// This function waits until the on the queue is locked.
     pub fn sync(&self, stash: &Stash<K, P>) {
         let mut notify = Notify::None;
 
@@ -122,13 +123,26 @@ where
     }
 
     /// Pushes an message to the Stash. will not try to send data to the queue.
-    /// Use this to batch some messages together before calling sync() to send them.
+    /// Use this to combine some messages together before calling sync() to send them.
     /// This function does not wait for the lock on the queue.
     pub fn send_stash(&self, entry: K, prio: P, stash: &Stash<K, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
         stash.msgs.borrow_mut().push(Message::Msg(entry, prio));
+    }
+
+    /// Combines the above to collect at least 'batch_size' messages in the stash before
+    /// trying to send them out.  Use this to batch some messages together before calling
+    /// sync() to send them.  This function does not wait for the lock on the queue.
+    pub fn send_batched(&self, entry: K, prio: P, batch_size: usize, stash: &Stash<K, P>) {
+        if stash.len() <= batch_size {
+            // append to the stash
+            self.send_stash(entry, prio, stash);
+        } else {
+            // try to send
+            self.send(entry, prio, stash);
+        }
     }
 
     /// Send the 'Drained' message
@@ -149,7 +163,7 @@ where
         }
     }
 
-    // With lock already hold.
+    /// With lock already hold.
     pub(crate) fn send_drained_with_lock(&self, lock: &mut BinaryHeap<Message<K, P>>) {
         if self
             .is_drained
