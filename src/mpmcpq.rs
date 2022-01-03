@@ -49,18 +49,6 @@ where
         }
     }
 
-    fn notify(&self, notify: Notify) {
-        match notify {
-            Notify::None => {}
-            Notify::One => {
-                self.notify.notify_one();
-            }
-            Notify::All => {
-                self.notify.notify_all();
-            }
-        }
-    }
-
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
     pub fn sync(&self, stash: &Stash<K, P>) {
         let mut notify = Notify::None;
@@ -227,6 +215,46 @@ where
                 Some(msg)
             }
             None => None,
+        }
+    }
+
+    /// Returns the number of messages in flight. This is the .len() plus any receiver that
+    /// still holds a guard.  Note: Informal only, this method will be racy when other threads
+    /// modify the PriorityQueue.
+    pub fn in_progress(&self) -> usize {
+        self.in_progress.load(atomic::Ordering::Relaxed)
+    }
+
+    /// Returns true when the Stash contains no messages.  Note: Informal only, this method
+    /// will be racy when other threads modify the PriorityQueue.
+    pub fn is_empty(&self) -> bool {
+        self.heap.lock().is_empty()
+    }
+
+    /// Returns the number of messages in the stash.  Note: Informal only, this method will be
+    /// racy when other threads modify the PriorityQueue.
+    pub fn len(&self) -> usize {
+        self.heap.lock().len()
+    }
+
+    // Note: no capacity(), future versions may use another heap implementation
+
+    /// Reserves capacity for at least `additional` more elements to be inserted in the
+    /// PriorityQueue.
+    pub fn reserve(&self, additional: usize) {
+        self.heap.lock().reserve(additional);
+    }
+
+    /// Wakes waiting threads.
+    fn notify(&self, notify: Notify) {
+        match notify {
+            Notify::None => {}
+            Notify::One => {
+                self.notify.notify_one();
+            }
+            Notify::All => {
+                self.notify.notify_all();
+            }
         }
     }
 }
