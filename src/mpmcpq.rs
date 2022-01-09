@@ -194,12 +194,22 @@ where
     }
 
     /// Try to get the smallest message from a queue. Will return Some<ReceiveGuard> when a
-    /// message is available.
+    /// message is available. This will not wait on the queue lock.
     pub fn try_recv_guard(&self) -> Option<ReceiveGuard<M, P>> {
         match self.heap.try_lock() {
             Some(mut queue) => queue.pop().map(|message| ReceiveGuard::new(message, self)),
             None => None,
         }
+    }
+
+    /// Try to get the smallest message from a queue. Will return Some<ReceiveGuard> when a
+    /// message is available. This will wait on the queue lock but return None when the queue
+    /// is empty.
+    pub fn maybe_recv_guard(&self) -> Option<ReceiveGuard<M, P>> {
+        self.heap
+            .lock()
+            .pop()
+            .map(|message| ReceiveGuard::new(message, self))
     }
 
     /// Returns the smallest message from a queue.
@@ -218,18 +228,28 @@ where
     }
 
     /// Try to get the smallest message from a queue. Will return Some<Message> when a message
-    /// is available.
+    /// is available. This will not wait on the queue lock.
     pub fn try_recv(&self) -> Option<Message<M, P>> {
-        match self.heap.try_lock() {
-            Some(mut lock) => {
-                let msg = lock.pop().unwrap();
+        self.heap.try_lock().and_then(|mut lock| {
+            lock.pop().and_then(|msg| {
                 if self.in_progress.fetch_sub(1, atomic::Ordering::SeqCst) == 1 {
                     self.send_drained_with_lock(&mut lock);
                 }
                 Some(msg)
+            })
+        })
+    }
+
+    /// Try to get the smallest message from a queue. Will return Some<Message> when a message
+    /// is available. This will wait on the queue lock but return None when the queue
+    /// is empty.
+    pub fn maybe_recv(&self) -> Option<Message<M, P>> {
+        self.heap.lock().pop().map(|message| {
+            if self.in_progress.fetch_sub(1, atomic::Ordering::SeqCst) == 1 {
+                self.send_drained();
             }
-            None => None,
-        }
+            message
+        })
     }
 
     /// Returns the number of messages in flight. This is the .len() plus any receiver that
