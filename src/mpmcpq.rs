@@ -242,11 +242,11 @@ where
     /// is available. This will not wait on the queue lock.
     pub fn try_recv(&self) -> Option<Message<M, P>> {
         self.heap.try_lock().and_then(|mut lock| {
-            lock.pop().and_then(|msg| {
+            lock.pop().map(|msg| {
                 if self.in_progress.fetch_sub(1, atomic::Ordering::SeqCst) == 1 {
                     self.send_drained_with_lock(&mut lock);
                 }
-                Some(msg)
+                msg
             })
         })
     }
