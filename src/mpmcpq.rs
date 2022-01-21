@@ -145,6 +145,17 @@ where
         }
     }
 
+    /// Pushes a message with prio onto the queue without using a stash.  This function waits
+    /// until the on the queue is locked. No stash involved, this should be not used with
+    /// threads that have a stash since it won't get drained first. Can be used to send
+    /// synchronous out-of-band message bypassing the stash.
+    pub fn send_nostash(&self, message: M, prio: P) {
+        self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
+        self.is_drained.store(false, atomic::Ordering::SeqCst);
+        self.heap.lock().push(Message::Msg(message, prio));
+        self.notify(Notify::One);
+    }
+
     /// Send the 'Drained' message
     pub(crate) fn send_drained(&self) {
         if self
