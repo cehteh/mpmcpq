@@ -29,7 +29,7 @@ where
 
     /// Creates a new stash. This Stash has no reference to a priority queue, messages left
     /// here at drop time become discarded.
-    pub fn new_without_priority_queue() -> Self {
+    pub fn without_priority_queue() -> Self {
         Stash {
             msgs: Vec::new(),
             pq:   None,
