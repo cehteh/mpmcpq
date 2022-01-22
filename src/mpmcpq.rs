@@ -51,10 +51,10 @@ where
 
     /// Inserts all elements from the stash to the PriorityQueue, empties stash.
     /// This function waits until the on the queue is locked.
-    pub fn sync(&self, stash: &Stash<M, P>) {
+    pub fn sync(&self, stash: &mut Stash<M, P>) {
         let mut notify = Notify::None;
 
-        let mut msgs = stash.msgs.borrow_mut();
+        let msgs = &mut stash.msgs;
 
         if !msgs.is_empty() {
             if msgs.len() == 1 {
@@ -75,12 +75,12 @@ where
     /// Pushes an message with prio onto the queue, uses a Stash as temporary storage when the
     /// queue is contended. Drains the stash in the uncontended case.
     /// This function does not wait for the lock on the queue.
-    pub fn send(&self, message: M, prio: P, stash: &Stash<M, P>) {
+    pub fn send(&self, message: M, prio: P, stash: &mut Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
         let mut notify = Notify::None;
-        let mut msgs = stash.msgs.borrow_mut();
+        let msgs = &mut stash.msgs;
 
         if let Some(mut lock) = self.heap.try_lock() {
             if msgs.is_empty() {
@@ -101,12 +101,12 @@ where
 
     /// Pushes a message with prio onto the queue, drains the Stash first.
     /// This function waits until the on the queue is locked.
-    pub fn send_sync(&self, message: M, prio: P, stash: &Stash<M, P>) {
+    pub fn send_sync(&self, message: M, prio: P, stash: &mut Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
         let notify;
-        let mut msgs = stash.msgs.borrow_mut();
+        let msgs = &mut stash.msgs;
 
         let mut lock = self.heap.lock();
         if msgs.is_empty() {
@@ -125,20 +125,20 @@ where
     /// Pushes an message to the Stash. will not try to send data to the queue.
     /// Use this to combine some messages together before calling sync() to send them.
     /// This function does not wait for the lock on the queue.
-    pub fn send_stash(&self, message: M, prio: P, stash: &Stash<M, P>) {
+    pub fn send_stashed(&self, message: M, prio: P, stash: &mut Stash<M, P>) {
         self.in_progress.fetch_add(1, atomic::Ordering::SeqCst);
         self.is_drained.store(false, atomic::Ordering::SeqCst);
 
-        stash.msgs.borrow_mut().push(Message::Msg(message, prio));
+        stash.msgs.push(Message::Msg(message, prio));
     }
 
     /// Combines the above to collect at least 'batch_size' messages in the stash before
     /// trying to send them out.  Use this to batch some messages together before calling
     /// sync() to send them.  This function does not wait for the lock on the queue.
-    pub fn send_batched(&self, message: M, prio: P, batch_size: usize, stash: &Stash<M, P>) {
+    pub fn send_batched(&self, message: M, prio: P, batch_size: usize, stash: &mut Stash<M, P>) {
         if stash.len() <= batch_size {
             // append to the stash
-            self.send_stash(message, prio, stash);
+            self.send_stashed(message, prio, stash);
         } else {
             // try to send
             self.send(message, prio, stash);

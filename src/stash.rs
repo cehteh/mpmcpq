@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use crate::*;
 
 /// For contention free queue insertion every thread maintains a private
@@ -11,7 +9,7 @@ where
     M: Send,
     P: PartialOrd + Ord,
 {
-    pub(crate) msgs: RefCell<Vec<Message<M, P>>>,
+    pub(crate) msgs: Vec<Message<M, P>>,
     pq:              Option<&'a PriorityQueue<M, P>>,
 }
 
@@ -24,7 +22,7 @@ where
     /// dropped all its remaining temporary messages will be sent to the queue.
     pub fn new(pq: &'a PriorityQueue<M, P>) -> Self {
         Stash {
-            msgs: RefCell::new(Vec::new()),
+            msgs: Vec::new(),
             pq:   Some(pq),
         }
     }
@@ -33,24 +31,24 @@ where
     /// here at drop time become discarded.
     pub fn new_without_priority_queue() -> Self {
         Stash {
-            msgs: RefCell::new(Vec::new()),
+            msgs: Vec::new(),
             pq:   None,
         }
     }
 
     /// Returns true when the Stash contains no messages.
     pub fn is_empty(&self) -> bool {
-        self.msgs.borrow().is_empty()
+        self.msgs.is_empty()
     }
 
     /// Returns the number of messages in the stash.
     pub fn len(&self) -> usize {
-        self.msgs.borrow().len()
+        self.msgs.len()
     }
 
     /// Returns the number of messages the stash can hold without reallocating.
     pub fn capacity(&self) -> usize {
-        self.msgs.borrow().capacity()
+        self.msgs.capacity()
     }
 }
 
