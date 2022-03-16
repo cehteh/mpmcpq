@@ -5,14 +5,14 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 authors = ["Christian Thäter <ct@pipapo.org>"]
 repository = "https://github.com/cehteh/mpmcpq.git"
-version = "0.9.0"
+version = "0.9.1"
 documentation = "http://docs.rs/mpmcpq"
 keywords = ["mpmc", "channel", "priority-queue", "synchronization", "messaging"]
 categories = ["concurrency"]
 edition = "2021"
 
 [dependencies]
-parking_lot = "0.11"
+parking_lot = ">= 0.11, <=0.12"
 
 [dev-dependencies]
 log = "0.4"
