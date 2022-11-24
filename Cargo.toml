@@ -16,7 +16,7 @@ parking_lot = ">= 0.11, <=0.13"
 
 [dev-dependencies]
 log = "0.4"
-env_logger = "0.9"
+env_logger = "0.10"
 
 [badges]
 maintenance = { status = "actively-developed" }
